@@ -1,22 +1,55 @@
 import torch
 import numpy as np
 
+class our_round(torch.nn.Module):
+    def __init__(self):
+        super(our_round, self).__init__()
+        self.round = torch.round
+
+    def forward(self, input):
+        # self.save_for_backward(x)
+        return self.round(input)#x+0.2+0.2*(torch.cos(2*torch.pi*(x+0.25))-1)
+
+    def backward(self, grad_output):
+        input, = ctx.saved_tensors
+        grad_input = sigm(input).grad
+        return grad_input
+
+
+def sigm(x):
+    return x+0.2+0.2*(torch.cos(2*torch.pi*(x+0.25))-1) #1 / (1 + torch.exp(-50*x))
+
+def grad_round(x):
+    # ctx.save_for_backward
+    output = sigm(x + 100)
+    for i in range(-99,100):
+        output = output + sigm(x - i)
+    # print(output - 100)
+    return output - 100
+
+    # def backward(ctx, grad_output):
+    #     return grad_output
 
 class LatticeQuantization:
-    def __init__(self, args, hex_mat = np.array([[np.sqrt(3) / 2, 0], [1 / 2, 1]])):
+    def __init__(self, args, hex_mat):
         self.gamma = args.gamma
         self.overloading_vec = []
+        self.round = sigm#our_round()#torch.round#
+        hex_mat = hex_mat
         # lattice generating matrix
-        gen_mat = hex_mat/np.linalg.det(hex_mat)
-        self.gen_mat = torch.from_numpy(gen_mat).to(torch.float32).to(args.device)
-
+        dete = (torch.linalg.det(hex_mat).to(torch.float32).to(args.device))
+        if dete == 0:
+            dete = 0.00000000000001
+        self.gen_mat = hex_mat/dete#?
+        # self.gen_mat = torch.from_numpy(gen_mat).to(torch.float32).to(args.device)
+        # print(self.gen_mat)
         # estimate P0_cov
         self.delta = (2 * args.gamma) / (2 ** args.R + 1)
         self.egde = args.gamma - (self.delta / 2)
-        orthog_domain_dither = np.random.uniform(low=-self.delta / 2, high=self.delta / 2, size=[2, 1000])
+        orthog_domain_dither = torch.from_numpy(np.random.uniform(low=-self.delta / 2, high=self.delta / 2, size=[2, 1000])).float()
 
-        lattice_domain_dither = np.matmul(gen_mat, orthog_domain_dither)
-        self.P0_cov = np.cov(lattice_domain_dither)
+        lattice_domain_dither = torch.matmul(self.gen_mat, orthog_domain_dither)
+        self.P0_cov = torch.cov(lattice_domain_dither)
 
     def print_overloading_vec(self):
         sum = 0
@@ -44,7 +77,8 @@ class LatticeQuantization:
 
         # quantize
         orthogonal_space = torch.matmul(torch.inverse(self.gen_mat), input_vec)
-        q_orthogonal_space = self.delta * torch.round(orthogonal_space / self.delta)
+        # print((self.round(orthogonal_space / self.delta)).detach()) #!!!!!!
+        q_orthogonal_space = self.delta * self.round(orthogonal_space / self.delta)
         self.calc_overloading_vec(q_orthogonal_space)
         q_orthogonal_space[q_orthogonal_space >= self.egde] = self.egde
         q_orthogonal_space[q_orthogonal_space <= -self.egde] = -self.egde
@@ -71,3 +105,8 @@ class ScalarQuantization:
         q_input[q_input <= -self.egde] = -self.egde
 
         return q_input - dither
+
+if __name__ == '__main__':
+    x = torch.rand(5)
+    print(x)
+    print(sigm(x))

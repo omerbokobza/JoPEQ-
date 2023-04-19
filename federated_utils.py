@@ -52,16 +52,20 @@ def aggregate_models(local_models, global_model, mechanism):  # FeaAvg
 
 
 class JoPEQ:  # Privacy Quantization class
-    def __init__(self, args, alpha = 0.6, hex_mat = np.array([[np.sqrt(3) / 2, 0], [1 / 2, 1]])):
+    def __init__(self, args, alpha = 0.6, hex_mat = torch.tensor([[np.sqrt(3) / 2, 0], [1 / 2, 1]]).to(torch.float32)):
+        hex_mat = torch.eye(2).to(torch.float32)
+        # hex_mat = (torch.tensor([[0.0618, 0.98], [0.98, 0.043]])).to(torch.float32)
         self.vec_normalization = args.vec_normalization
         self.alpha = alpha
         self.args = args
         dither_var = None
         if args.quantization:
             if args.lattice_dim > 1:
+                # print(f"the dimention is  {self.args.lattice_dim}")
                 self.quantizer = LatticeQuantization(args, hex_mat)
                 dither_var = self.quantizer.P0_cov
             else:
+                # print(f"the dimention is  {self.args.lattice_dim}")
                 self.quantizer = ScalarQuantization(args)
                 dither_var = (self.quantizer.delta ** 2) / 12
         else:
