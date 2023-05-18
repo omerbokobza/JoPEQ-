@@ -57,7 +57,7 @@ def args_parser():
     parser.add_argument('--quantization', action='store_true', default=True,
                         help="whether to perform quantization")
     parser.add_argument('--lattice_dim', type=int, default=2,
-                        choices=[1, 2],
+                        choices=[1, 2, 3, 4],
                         help="perform scalar (lattice_dim=1) or lattice (lattice_dim=2) quantization ")
     parser.add_argument('--R', type=int, default=1,
                         help="compression rate (number of bits per sample)")

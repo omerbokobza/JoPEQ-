@@ -18,72 +18,69 @@ from torchmetrics import MeanSquaredError as MSE
 
 
 class PyTorchMLP(torch.nn.Module):
-    def __init__(self, num_hidden1=400, num_hidden2 = 300, num_hidden3 = 500):
+    def __init__(self, num_hidden1=400, num_hidden2 = 300, num_hidden3 = 500, output_dim = 2):
         super(PyTorchMLP, self).__init__()
+        self.output_dim = output_dim
         self.layer1 = torch.nn.Linear(100, num_hidden1)
         self.layer2 = torch.nn.Linear(num_hidden1, num_hidden2)
         self.layer3 = torch.nn.Linear(num_hidden2, num_hidden3)
-        self.layer4 = torch.nn.Linear(num_hidden3, 4)
-        self.relu = nn.ReLU() ## The Activation FunctionSSSS
-        self.sigmoid = nn.Sigmoid()
+        self.layer4 = torch.nn.Linear(num_hidden3, output_dim**2)
+        self.relu = nn.LeakyReLU() ## The Activation FunctionSSSS
+        self.sigmoid = torch.tanh #nn.Sigmoid()
     def forward(self, inp):
         inp = inp.reshape([-1, 100])
         first_layer = self.relu(self.layer1(inp))
         second_layer = self.relu(self.layer2(first_layer))
         third_layer = self.relu(self.layer3(second_layer))
-        forth_layer = self.relu(self.layer4(third_layer))
-        return forth_layer
+        forth_layer = self.sigmoid(self.layer4(third_layer))
+        return torch.reshape(forth_layer, [self.output_dim, self.output_dim])
 
-
-def train_model(model, learning_rate=1e-5):
+def train_model(model, learning_rate=1e-4 , dim = 2):
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)  # built-in L2
     # Adam for our parameter updates
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # built-in L2
     train_acc = []
     epochs = []
-    sum_alpha = 0
-    avg_alpha = 0
+    sum_hex = torch.zeros([dim, dim])
+    # avg_hex = torch.zeros(self)
     vec_alpha = []
+
     loss_vec = []
     # Training
-    for t in range(1 , 101):
+    for t in range(1 , 120):
         # Divide data into mini batches
 
         for i in range(0, 100):
             # Feed forward to get the logits
             local_weights_orig = torch.rand(100)
 
-            # local_weights_orig = torch.transpose(local_weights_orig, 1, 0)
             hex_mat = model(local_weights_orig)
-            hex_mat = hex_mat.clone()
-            # print(hex_mat)
-            alpha = 0.6 #hex_mat[:, 4]
-            # hex_mat = hex_mat[:, 0:4]
-            # print(alpha, hex_mat)
-            # exit()
-            hex_mat = torch.reshape(hex_mat, [2, 2])
-            hex_mat = hex_mat.detach().numpy()
+            alpha = 1 ### change it #####
+            # hex_mat = torch.reshape(hex_mat, [2, 2])
+            # hex_mat = hex_mat.detach().numpy()
             mechanism = federated_utils.JoPEQ(args, alpha, hex_mat)
             local_weights = mechanism(local_weights_orig)
+            # print(local_weights.detach())
             local_weights.requires_grad_(requires_grad=True)
             local_weights_orig.requires_grad_(requires_grad=True)
             # Compute the training loss and accuracy
             if type(mechanism) == federated_utils.JoPEQ:
                 overloading = mechanism.quantizer.print_overloading_vec()
-            loss = criterion(local_weights.reshape(-1, 100), local_weights_orig.reshape(-1, 100)) + overloading
+            loss = criterion(local_weights.reshape(-1, 100), local_weights_orig.reshape(-1, 100)) #+ overloading
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
         # Compute training accuracy
-
-        sum_alpha += alpha
-        avg_alpha = sum_alpha/t
-        print("[EPOCH]: %i, [LOSS]: %.6f, [Alpha]: %.3f, [AVG_ALPHA]: %.3f, [Overloading]: %.3f, [Hex_mat]:" % (
+        overloading = 0
+        sum_hex += hex_mat
+        avg_hex = sum_hex/t
+        avg_alpha = alpha
+        print("[EPOCH]: %i, [LOSS]: %.6f, [Alpha]: %.3f, [AVG_ALPHA]: %.3f, [Overloading]: %.3f, [Avg_hex_mat]:" % (
         t, loss.item(), alpha, avg_alpha, overloading))
-        print(hex_mat)
+        print(avg_hex) #/torch.linalg.det(hex_mat).to(torch.float32).to(args.device) + 0.00001)#?
         display.clear_output(wait=True)
 
         # Save error on each epoch
@@ -109,24 +106,17 @@ def train_model(model, learning_rate=1e-5):
     # plt.ylabel("Avg_alpha")
     # plt.show()
 
-
-def randomize_zeta():
-    local_weights_orig = torch.rand((100, 100))
-    vec = [0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2.0]
-    for alpha in vec:
-        mechanism = federated_utils.JoPEQ(args, alpha)
-        local_weights = mechanism(local_weights_orig)
-        loss = mean_squared_error(local_weights, local_weights_orig)
-        print(f"The loss for alpha = {alpha} is {loss}")
-
-
 if __name__ == '__main__':
     args = args_parser()
-    pytorchmlp = PyTorchMLP()
-    train_model(pytorchmlp)
+    args.privacy = False
+    args.R = 4
+    args.lattice_dim = 4
+    pytorchmlp11 = PyTorchMLP(output_dim=args.lattice_dim)
+    train_model(pytorchmlp11,dim=args.lattice_dim)
 
     # randomize_zeta()
     print("end of zeta simulation")
 
+##     !!!!!!!!!!!!!!!!   if we run this file, we have to remove the hex_mat line in init (JOPEQ) !!!!!!!!!!!!              ##
 
 

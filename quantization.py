@@ -31,10 +31,11 @@ def grad_round(x):
     #     return grad_output
 
 class LatticeQuantization:
-    def __init__(self, args, hex_mat):
+    def __init__(self, args, hex_mat, dim = 4):
         self.gamma = args.gamma
         self.overloading_vec = []
-        self.round = sigm#our_round()#torch.round#
+        self.round = torch.round #sigm
+        # self.dim = dim
         hex_mat = hex_mat
         # lattice generating matrix
         dete = (torch.linalg.det(hex_mat).to(torch.float32).to(args.device))
@@ -46,7 +47,7 @@ class LatticeQuantization:
         # estimate P0_cov
         self.delta = (2 * args.gamma) / (2 ** args.R + 1)
         self.egde = args.gamma - (self.delta / 2)
-        orthog_domain_dither = torch.from_numpy(np.random.uniform(low=-self.delta / 2, high=self.delta / 2, size=[2, 1000])).float()
+        orthog_domain_dither = torch.from_numpy(np.random.uniform(low=-self.delta / 2, high=self.delta / 2, size=[args.lattice_dim, 1000])).float()
 
         lattice_domain_dither = torch.matmul(self.gen_mat, orthog_domain_dither)
         self.P0_cov = torch.cov(lattice_domain_dither)
@@ -70,6 +71,7 @@ class LatticeQuantization:
         self.overloading_vec.append([overloading_sum, overloading_shape])
 
     def __call__(self, input_vec):
+        # input_vec = input_vec.view(self.dim,-1)#!!!!!!!!!!!!!!!!!!
         dither = torch.zeros_like(input_vec, dtype=input_vec.dtype)
         dither = torch.matmul(self.gen_mat, dither.uniform_(-self.delta / 2, self.delta / 2))  # generate dither
 
